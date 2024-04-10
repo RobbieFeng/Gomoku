@@ -1,3 +1,5 @@
+import math
+
 import pygame
 import sys
 import time
@@ -13,6 +15,7 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 PLAYER = 'A'
 BOT = 'B'
+choise_history = []
 def draw_board(screen):
     screen.fill(WHITE)
     for i in range(BOARD_SIZE):
@@ -62,11 +65,13 @@ def game_over(board):
                     return True
     return False
 
+
 def evaluate_board(board, player):
+    BOARD_SIZE = len(board)  # Assuming the board is square
     score = 0
     opponent = 'A' if player == 'B' else 'B'
     patterns = {
-        'five_in_a_row': 10000000,
+        'five_in_a_row': 100000,
         'four_in_a_row_two_open': 10000,
         'four_in_a_row_one_open': 1000,
         'three_in_a_row_two_open': 1000,
@@ -74,114 +79,153 @@ def evaluate_board(board, player):
         'two_in_a_row_two_open': 100,
         'two_in_a_row_one_open': 10,
     }
+    checked_positions = set()  # To keep track of positions that have been checked
 
-
-    # Check for patterns in all directions and positions
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
-            if board[row][col] == player:
-                # For each piece belonging to the player, check surrounding patterns
-                score += check_patterns_around_piece(board, row, col, player, patterns)
-            elif board[row][col] == opponent:
-                # Similarly, check patterns for the opponent and subtract scores to prioritize blocking
-                score -= check_patterns_around_piece(board, row, col, opponent, patterns)
-    print("score: ", score if player == BOT else -score)
+            if (row, col) not in checked_positions and board[row][col] in [player, opponent]:
+                # Check patterns only for positions that haven't been checked before
+                piece_owner = board[row][col]
+                score_change, new_checked_positions = check_patterns_around_piece(board, row, col, piece_owner,
+                                                                                  patterns, BOARD_SIZE)
+                checked_positions.update(new_checked_positions)  # Update checked positions
+
+                if piece_owner == player:
+                    score += score_change
+                else:
+                    score -= score_change
+
     return score
 
-def check_patterns_around_piece(board, row, col, player, patterns):
+
+def check_patterns_around_piece(board, row, col, player, patterns, BOARD_SIZE):
     score = 0
-    # Directions: Horizontal (H), Vertical (V), Diagonal (\) and Diagonal (/)
-    directions = [(0, 1), (1, 0), (1, 1), (1, -1)]  # Right, Down, Down-Right, Down-Left
+    checked_positions = set()
+    directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
 
     for d in directions:
-        for i in range(-4, 5):  # Check 4 pieces in each direction from the current piece
-            consecutive_count = 0
-            open_ends = 0
+        forward_positions, backward_positions = [], []
+        total_count = 1  # Count the current piece
+        open_ends = 0
 
-            for j in range(5):  # Check for 5 consecutive pieces
-                r, c = row + (i + j) * d[0], col + (i + j) * d[1]
-
-                if not (0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE):
-                    break  # Out of bounds
-
+        # Check forward direction
+        for i in range(1, 5):
+            r, c = row + i * d[0], col + i * d[1]
+            if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
+                forward_positions.append((r, c))
                 if board[r][c] == player:
-                    consecutive_count += 1
-                elif board[r][c] == ' ' or board[r][c] == player:
+                    total_count += 1
+                elif board[r][c] == ' ':
                     open_ends += 1
+                    break
                 else:
-                    break  # Opponent's piece, not a valid pattern
+                    break
+            else:
+                break
 
-            if consecutive_count == 5:
-                return patterns['five_in_a_row']  # Immediate win
+        # Check backward direction
+        for i in range(1, 5):
+            r, c = row - i * d[0], col - i * d[1]
+            if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
+                backward_positions.append((r, c))
+                if board[r][c] == player:
+                    total_count += 1
+                elif board[r][c] == ' ' and total_count < 5:
+                    open_ends += 1
+                    break
+                else:
+                    break
+            else:
+                break
 
-            if consecutive_count == 4:
-                if open_ends == 2:
-                    score += patterns['four_in_a_row_two_open']
-                    #print("four_in_a_row_two_open for player ", player)
-                elif open_ends == 1:
-                    score += patterns['four_in_a_row_one_open']
-                    #print("four_in_a_row_one_open for player ", player)
-            elif consecutive_count == 3:
-                if open_ends == 2:
-                    score += patterns['three_in_a_row_two_open']
-                    #print("three_in_a_row_two_open for player ", player)
-                elif open_ends == 1:
-                    score += patterns['three_in_a_row_one_open']
-                    #print("three_in_a_row_one_open for player ", player)
+        # Update score based on pattern found
+        pattern_key = ''
+        if total_count == 5:
+            pattern_key = 'five_in_a_row'
+        elif total_count == 4:
+            if open_ends == 2:
+                pattern_key = 'four_in_a_row_two_open'
+            elif open_ends == 1:
+                pattern_key = 'four_in_a_row_one_open'
+        elif total_count == 3:
+            if open_ends == 2:
+                pattern_key = 'three_in_a_row_two_open'
+            elif open_ends == 1:
+                pattern_key = 'three_in_a_row_one_open'
+        elif total_count == 2:
+            if open_ends == 2:
+                pattern_key = 'two_in_a_row_two_open'
+            elif open_ends == 1:
+                pattern_key = 'two_in_a_row_one_open'
 
-            elif consecutive_count == 2:
-                if open_ends == 2:
-                    score += patterns['two_in_a_row_two_open']
-                    #print("two_in_a_row_two_open for player ", player)
-                elif open_ends == 1:
-                    score += patterns['two_in_a_row_one_open']
-                    #print("two_in_a_row_one_open for player ", player)
+        if pattern_key:
+            score += patterns[pattern_key]
+            # Add positions part of this pattern to checked_positions to avoid rechecking
+            checked_positions.update(forward_positions)
+            checked_positions.update(backward_positions)
 
-    return score
+    # Return the score and the set of checked positions
+    return score, checked_positions
 
-def bot_move(board, depth, alpha, beta, maximizing_player):
+
+import time
+
+def generate_candidate_moves(board, proximity=2):
+    candidate_moves = set()
+    for row in range(BOARD_SIZE):
+        for col in range(BOARD_SIZE):
+            if board[row][col] != ' ':
+                for dr in range(-proximity, proximity + 1):
+                    for dc in range(-proximity, proximity + 1):
+                        new_row, new_col = row + dr, col + dc
+                        if 0 <= new_row < BOARD_SIZE and 0 <= new_col < BOARD_SIZE and board[new_row][new_col] == ' ':
+                            candidate_moves.add((new_row, new_col))
+    return list(candidate_moves)
+
+def minimax(board, depth, alpha, beta, maximizing_player, start_time, time_limit, best_move_so_far):
+    global choise_history
     if depth == 0 or game_over(board):
-        return evaluate_board(board, BOT if maximizing_player else PLAYER), None
-
-    best_move = None
+        print(evaluate_board(board, BOT)) if maximizing_player else depth == 0
+        return evaluate_board(board, BOT if maximizing_player else PLAYER), best_move_so_far
+    if time.time() - start_time > time_limit:
+        return (-999 if maximizing_player else 9999), best_move_so_far
     if maximizing_player:
         max_eval = float('-inf')
-        for row in range(BOARD_SIZE):
-            for col in range(BOARD_SIZE):
-                if board[row][col] == ' ':
-                    board[row][col] = BOT
-                    # Somehow bot never tries to win, so add this
-                    if check_win_board(board, BOT):
-                        board[row][col] = ' '
-                        return float('inf'), (row, col)
-                    evaluation = bot_move(board, depth - 1, alpha, beta, False)[0]
-                    board[row][col] = ' '
-                    if evaluation > max_eval:
-                        max_eval = evaluation
-                        best_move = (row, col)
-                    alpha = max(alpha, evaluation)
-                    if beta <= alpha:
-                        break
+        for move in generate_candidate_moves(board):
+            row, col = move
+            board[row][col] = BOT  # Make the move
+            eval, _ = minimax(board, depth - 1, alpha, beta, False, start_time, time_limit, best_move_so_far)
+            board[row][col] = ' '  # Undo the move
+            if eval > max_eval:
+                max_eval = eval
+                best_move_so_far = move
+                choise_history.append((depth, best_move_so_far))
+            alpha = max(alpha, eval)
             if beta <= alpha:
                 break
-        return max_eval, best_move
+        return max_eval, best_move_so_far
     else:
         min_eval = float('inf')
-        for row in range(BOARD_SIZE):
-            for col in range(BOARD_SIZE):
-                if board[row][col] == ' ':
-                    board[row][col] = PLAYER
-                    evaluation = bot_move(board, depth - 1, alpha, beta, True)[0]
-                    board[row][col] = ' '
-                    if evaluation < min_eval:
-                        min_eval = evaluation
-                        best_move = (row, col)
-                    beta = min(beta, evaluation)
-                    if beta <= alpha:
-                        break
+        for move in generate_candidate_moves(board):
+            row, col = move
+            board[row][col] = PLAYER  # Make the move
+            eval, _ = minimax(board, depth - 1, alpha, beta, True, start_time, time_limit, best_move_so_far)
+            board[row][col] = ' '  # Undo the move
+            if eval < min_eval:
+                min_eval = eval
+                best_move_so_far = move
+            beta = min(beta, eval)
             if beta <= alpha:
                 break
-        return min_eval, best_move
+        return min_eval, best_move_so_far
+
+def bot_move(board, depth, time_limit=10):
+    start_time = time.time()
+    score, best_move = minimax(board, depth, float('-inf'), float('inf'), True, start_time, time_limit, None)
+    print(f"Best move: {best_move}, Score: {score}")
+    return best_move
+
+
 
 def draw_pieces(screen, board):
     for row in range(BOARD_SIZE):
@@ -190,12 +234,12 @@ def draw_pieces(screen, board):
                 draw_piece(screen, row, col, RED)
             elif board[row][col] == BOT:
                 draw_piece(screen, row, col, BLUE)
-def main(depth, alpha, beta, maximizing_player):
+def main(depth, time_limit):
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption('Gomoku')
     clock = pygame.time.Clock()
-    start_time = time.time()
+    player_start_time = time.time()
 
     board = [[' ' for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
     player = PLAYER
@@ -218,15 +262,15 @@ def main(depth, alpha, beta, maximizing_player):
                     draw_pieces(screen, board)
                     pygame.display.flip()
 
-
         if player == BOT and not game_over_flag[0]:
-            _, (bot_row, bot_col) = bot_move(board, depth, alpha, beta, maximizing_player)
+            (bot_row, bot_col) = bot_move(board, depth, time_limit)
+            process_history(depth)
             if bot_row is not None and bot_col is not None:
                 board[bot_row][bot_col] = BOT
                 if check_win_board(board, BOT):
                     game_over_flag = (True, BOT)
                 player = PLAYER
-                start_time = time.time()
+                player_start_time = time.time()
 
         draw_board(screen)
         draw_pieces(screen, board)
@@ -234,14 +278,27 @@ def main(depth, alpha, beta, maximizing_player):
         if game_over_flag[0]:
             draw_winner(screen, game_over_flag[1])
 
-        draw_timer(screen, player, int(time.time() - start_time))
+        draw_timer(screen, player, int(time.time() - player_start_time))
         pygame.display.flip()
         clock.tick(30)
 
     while True:
         # Keep the window open for winner display
+        time.sleep(5)
         pass
+
+def process_history(depth):
+    global choise_history
+    #count number of each piece in the history
+    count = {}
+    for i in choise_history:
+        if i[1] == depth:
+            if i[2] in count:
+                count[i[2]] += 1
+            else:
+                count[i[2]] = 1
+    print(count)
+    choise_history = []
+
 if __name__ == '__main__':
-    main( 3, -10000000, 10000000, True)
-    '''board = [['A', 'A', 'A', 'A', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 'A', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', 'A', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 'A', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', 'A', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']]
-    print(evaluate_board(board, 'A'))'''
+    main( 2, 10)
