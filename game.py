@@ -94,6 +94,7 @@ def count_chain_length(board, row, col, player, drow, dcol):
         row += drow
         col += dcol
     return length
+
 def evaluate_chain(board, row, col, player):
     directions = [(1, 0), (0, 1), (1, 1), (1, -1)]
     max_length = 0
