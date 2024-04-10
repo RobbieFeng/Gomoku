@@ -1,6 +1,7 @@
 import pygame
 import sys
 import time
+import random
 
 # Constants
 BOARD_SIZE = 15
@@ -11,6 +12,8 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
+PLAYER = 'A'
+BOT = 'B'
 
 
 def draw_board(screen):
@@ -19,6 +22,7 @@ def draw_board(screen):
         pygame.draw.line(screen, BLACK, (i * GRID_SIZE, 0), (i * GRID_SIZE, BOARD_SIZE * GRID_SIZE))
         pygame.draw.line(screen, BLACK, (0, i * GRID_SIZE), (BOARD_SIZE * GRID_SIZE, i * GRID_SIZE))
     pygame.draw.line(screen, BLACK, (0, (BOARD_SIZE) * GRID_SIZE), (BOARD_SIZE * GRID_SIZE, (BOARD_SIZE) * GRID_SIZE))
+
 
 def draw_piece(screen, row, col, color):
     pygame.draw.circle(screen, color, (col * GRID_SIZE + GRID_SIZE // 2, row * GRID_SIZE + GRID_SIZE // 2),
@@ -83,6 +87,42 @@ def draw_winner(screen, winner):
     screen.blit(winner_text,
                 ((WINDOW_WIDTH - winner_text.get_width()) // 2, (WINDOW_HEIGHT - winner_text.get_height()) // 2))
 
+def count_chain_length(board, row, col, player, drow, dcol):
+    length = 0
+    while 0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE and board[row][col] == player:
+        length += 1
+        row += drow
+        col += dcol
+    return length
+def evaluate_chain(board, row, col, player):
+    directions = [(1, 0), (0, 1), (1, 1), (1, -1)]
+    max_length = 0
+    for drow, dcol in directions:
+        length = 1 + count_chain_length(board, row + drow, col + dcol, player, drow, dcol) + count_chain_length(board, row - drow, col - dcol, player, -drow, -dcol)
+        max_length = max(max_length, length)
+    return max_length
+def bot_move(board):
+    best_move = None
+    best_score = -1
+
+    for row in range(BOARD_SIZE):
+        for col in range(BOARD_SIZE):
+            if board[row][col] == ' ':
+                board[row][col] = PLAYER
+                opponent_chain_length = evaluate_chain(board, row, col, PLAYER)
+                board[row][col] = BOT
+                bot_chain_length = evaluate_chain(board, row, col, BOT)
+                board[row][col] = ' '
+
+                score = max(opponent_chain_length, bot_chain_length)
+                if score > best_score or (score == best_score and random.random() < 0.5):
+                    best_score = score
+                    best_move = (row, col)
+
+    return best_move
+
+
+
 
 def main():
     pygame.init()
@@ -102,7 +142,7 @@ def main():
                 pygame.quit()
                 sys.exit()
 
-            if not game_over and event.type == pygame.MOUSEBUTTONDOWN:
+            if not game_over and event.type == pygame.MOUSEBUTTONDOWN and player == 'A':
                 col = event.pos[0] // GRID_SIZE
                 row = event.pos[1] // GRID_SIZE
 
@@ -113,7 +153,19 @@ def main():
                         winner = player
                         game_over = True
 
-                    player = 'B' if player == 'A' else 'A'
+                    player = 'B'
+                    start_time = time.time()
+
+            elif not game_over and player == 'B':
+                bot_row, bot_col = bot_move(board)
+                if bot_row is not None and bot_col is not None:
+                    board[bot_row][bot_col] = player
+
+                    if check_win(board, bot_row, bot_col, player):
+                        winner = player
+                        game_over = True
+
+                    player = 'A'
                     start_time = time.time()
 
         draw_board(screen)
