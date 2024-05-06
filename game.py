@@ -224,6 +224,7 @@ def minimax(board, depth, alpha, beta, maximizing_player, start_time):
     best_move = None
     if maximizing_player:
         max_eval = float('-inf')
+        # for fist move, idealy place beside the first player
         candidates = generate_candidate_moves(board) if depth != Max_depth else generate_candidate_moves(board,
                                                                                                          proximity=1)
         for move in candidates:
