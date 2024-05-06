@@ -16,6 +16,7 @@ BLUE = (0, 0, 255)
 PLAYER = 'A'
 BOT = 'B'
 choise_history = []
+Max_depth= -1
 def draw_board(screen):
     screen.fill(WHITE)
     for i in range(BOARD_SIZE):
@@ -71,14 +72,15 @@ def evaluate_board(board, player):
     score = 0
     opponent = 'A' if player == 'B' else 'B'
     patterns = {
-        'five_in_a_row': 100000,
-        'four_in_a_row_two_open': 10000,
-        'four_in_a_row_one_open': 1000,
-        'three_in_a_row_two_open': 1000,
-        'three_in_a_row_one_open': 100,
-        'two_in_a_row_two_open': 100,
+        'five_in_a_row': 640,
+        'four_in_a_row_two_open': 320,
+        'four_in_a_row_one_open': 160,
+        'three_in_a_row_two_open': 80,
+        'three_in_a_row_one_open': 40,
+        'two_in_a_row_two_open': 20,
         'two_in_a_row_one_open': 10,
     }
+    urgent_patterns = ['five_in_a_row', 'four_in_a_row_two_open', 'four_in_a_row_one_open']
     checked_positions = set()  # To keep track of positions that have been checked
 
     for row in range(BOARD_SIZE):
@@ -94,7 +96,7 @@ def evaluate_board(board, player):
                     score += score_change
                 else:
                     score -= score_change
-
+    print("Score:%d for player:%s" % (score, player))
     return score
 
 
@@ -157,7 +159,6 @@ def check_patterns_around_piece(board, row, col, player, patterns, BOARD_SIZE):
                 pattern_key = 'two_in_a_row_two_open'
             elif open_ends == 1:
                 pattern_key = 'two_in_a_row_one_open'
-
         if pattern_key:
             score += patterns[pattern_key]
             # Add positions part of this pattern to checked_positions to avoid rechecking
@@ -180,49 +181,51 @@ def generate_candidate_moves(board, proximity=2):
                         new_row, new_col = row + dr, col + dc
                         if 0 <= new_row < BOARD_SIZE and 0 <= new_col < BOARD_SIZE and board[new_row][new_col] == ' ':
                             candidate_moves.add((new_row, new_col))
+
     return list(candidate_moves)
 
-def minimax(board, depth, alpha, beta, maximizing_player, start_time, time_limit, best_move_so_far):
-    global choise_history
+def minimax(board, depth, alpha, beta, maximizing_player):
     if depth == 0 or game_over(board):
-        print(evaluate_board(board, BOT)) if maximizing_player else depth == 0
-        return evaluate_board(board, BOT if maximizing_player else PLAYER), best_move_so_far
-    if time.time() - start_time > time_limit:
-        return (-999 if maximizing_player else 9999), best_move_so_far
+        return evaluate_board(board, BOT), None, []
+    best_move = None
     if maximizing_player:
         max_eval = float('-inf')
         for move in generate_candidate_moves(board):
             row, col = move
-            board[row][col] = BOT  # Make the move
-            eval, _ = minimax(board, depth - 1, alpha, beta, False, start_time, time_limit, best_move_so_far)
+            board[row][col] = BOT
+            eval, _, trace = minimax(board, depth - 1, alpha, beta, False)
             board[row][col] = ' '  # Undo the move
             if eval > max_eval:
                 max_eval = eval
-                best_move_so_far = move
-                choise_history.append((depth, best_move_so_far))
+                best_move = move
+                trace.append(move)
+                bext_trace = trace
             alpha = max(alpha, eval)
             if beta <= alpha:
                 break
-        return max_eval, best_move_so_far
+        return max_eval, best_move, bext_trace
     else:
         min_eval = float('inf')
         for move in generate_candidate_moves(board):
             row, col = move
-            board[row][col] = PLAYER  # Make the move
-            eval, _ = minimax(board, depth - 1, alpha, beta, True, start_time, time_limit, best_move_so_far)
+            board[row][col] = PLAYER
+            eval, _ , trace = minimax(board, depth - 1, alpha, beta, True)
             board[row][col] = ' '  # Undo the move
             if eval < min_eval:
                 min_eval = eval
-                best_move_so_far = move
+                best_move = move
+                trace.append(move)
+                best_trace = trace
             beta = min(beta, eval)
             if beta <= alpha:
                 break
-        return min_eval, best_move_so_far
 
-def bot_move(board, depth, time_limit=10):
-    start_time = time.time()
-    score, best_move = minimax(board, depth, float('-inf'), float('inf'), True, start_time, time_limit, None)
-    print(f"Best move: {best_move}, Score: {score}")
+        return min_eval, best_move, best_trace
+
+
+def bot_move(board, depth):
+    score, best_move, best_trace = minimax(board, depth, float('-inf'), float('inf'),True)
+    print(f"Best move: {best_move}, Score: {score}, trace: {best_trace}")
     return best_move
 
 
@@ -234,7 +237,9 @@ def draw_pieces(screen, board):
                 draw_piece(screen, row, col, RED)
             elif board[row][col] == BOT:
                 draw_piece(screen, row, col, BLUE)
-def main(depth, time_limit):
+def main(depth):
+    global Max_depth
+    Max_depth = depth
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption('Gomoku')
@@ -263,7 +268,7 @@ def main(depth, time_limit):
                     pygame.display.flip()
 
         if player == BOT and not game_over_flag[0]:
-            (bot_row, bot_col) = bot_move(board, depth, time_limit)
+            (bot_row, bot_col) = bot_move(board, depth)
             process_history(depth)
             if bot_row is not None and bot_col is not None:
                 board[bot_row][bot_col] = BOT
@@ -301,4 +306,4 @@ def process_history(depth):
     choise_history = []
 
 if __name__ == '__main__':
-    main( 2, 10)
+    main(3)
