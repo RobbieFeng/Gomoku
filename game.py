@@ -3,9 +3,10 @@ import math
 import pygame
 import sys
 import time
+import threading
 
 # Constants
-BOARD_SIZE = 10
+BOARD_SIZE = 13
 GRID_SIZE = 40
 WINDOW_WIDTH = BOARD_SIZE * GRID_SIZE
 WINDOW_HEIGHT = BOARD_SIZE * GRID_SIZE + 100
@@ -15,27 +16,46 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 PLAYER = 'A'
 BOT = 'B'
-choise_history = []
-Max_depth= -1
+Max_depth = "Initialize"
+screen = "Initialize"
+count = 0
+
 def draw_board(screen):
     screen.fill(WHITE)
     for i in range(BOARD_SIZE):
         pygame.draw.line(screen, BLACK, (i * GRID_SIZE, 0), (i * GRID_SIZE, BOARD_SIZE * GRID_SIZE))
         pygame.draw.line(screen, BLACK, (0, i * GRID_SIZE), (BOARD_SIZE * GRID_SIZE, i * GRID_SIZE))
     pygame.draw.line(screen, BLACK, (0, BOARD_SIZE * GRID_SIZE), (BOARD_SIZE * GRID_SIZE, BOARD_SIZE * GRID_SIZE))
+    restart_button_rect = pygame.Rect(WINDOW_WIDTH - 150, WINDOW_HEIGHT - 90, 140, 40)
+    pygame.draw.rect(screen, BLUE, restart_button_rect)
+    font = pygame.font.Font(None, 36)
+    text = font.render('Restart', True, WHITE)
+    text_rect = text.get_rect(center=restart_button_rect.center)
+    screen.blit(text, text_rect)
 
 def draw_piece(screen, row, col, color):
-    pygame.draw.circle(screen, color, (col * GRID_SIZE + GRID_SIZE // 2, row * GRID_SIZE + GRID_SIZE // 2), GRID_SIZE // 2 - 5)
+    pygame.draw.circle(screen, color, (col * GRID_SIZE + GRID_SIZE // 2, row * GRID_SIZE + GRID_SIZE // 2),
+                       GRID_SIZE // 2 - 5)
+
 
 def draw_timer(screen, player, remaining_time):
+    screen.fill(WHITE, (0, WINDOW_HEIGHT - 70, WINDOW_WIDTH, 70))
     font = pygame.font.Font(None, 36)
-    timer_text = font.render(f"Player {player}'s Turn: {remaining_time} sec", True, BLACK)
+    if player == BOT:
+        timer_text = font.render(f"Bot's Turn: Thinking... {remaining_time} sec", True, BLACK)
+    else:
+        timer_text = font.render(f"Player's Turn: {remaining_time} sec", True, BLACK)
     screen.blit(timer_text, (10, WINDOW_HEIGHT - 70))
+    pygame.display.flip()
+
+
 
 def draw_winner(screen, winner):
     font = pygame.font.Font(None, 48)
     winner_text = font.render(f"Player {winner} wins!", True, RED if winner == PLAYER else BLUE)
-    screen.blit(winner_text, ((WINDOW_WIDTH - winner_text.get_width()) // 2, (WINDOW_HEIGHT - winner_text.get_height()) // 2))
+    screen.blit(winner_text,
+                ((WINDOW_WIDTH - winner_text.get_width()) // 2, (WINDOW_HEIGHT - winner_text.get_height()) // 2))
+
 
 def check_win(board, row, col, player):
     directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
@@ -51,6 +71,7 @@ def check_win(board, row, col, player):
             return True
     return False
 
+
 def check_win_board(board, player):
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
@@ -58,6 +79,8 @@ def check_win_board(board, player):
                 if check_win(board, row, col, player):
                     return True
     return False
+
+
 def game_over(board):
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
@@ -72,7 +95,7 @@ def evaluate_board(board, player):
     score = 0
     opponent = 'A' if player == 'B' else 'B'
     patterns = {
-        'five_in_a_row': 640,
+        'five_in_a_row': 64000,
         'four_in_a_row_two_open': 320,
         'four_in_a_row_one_open': 160,
         'three_in_a_row_two_open': 80,
@@ -169,47 +192,54 @@ def check_patterns_around_piece(board, row, col, player, patterns, BOARD_SIZE):
     return score, checked_positions
 
 
-import time
-
 def generate_candidate_moves(board, proximity=2):
     candidate_moves = set()
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
             if board[row][col] != ' ':
                 for dr in range(-proximity, proximity + 1):
-                    for dc in range(-proximity, proximity + 1):
+                    for dc in range(-proximity + abs(dr), proximity + 1 - abs(dr)):
                         new_row, new_col = row + dr, col + dc
                         if 0 <= new_row < BOARD_SIZE and 0 <= new_col < BOARD_SIZE and board[new_row][new_col] == ' ':
                             candidate_moves.add((new_row, new_col))
 
     return list(candidate_moves)
 
-def minimax(board, depth, alpha, beta, maximizing_player):
+
+def minimax(board, depth, alpha, beta, maximizing_player, start_time):
+    global count
+    count += 1
+    if count % 1000 == 0:
+        draw_timer(screen, BOT, int(time.time() - start_time))
     if depth == 0 or game_over(board):
-        return evaluate_board(board, BOT), None, []
+        score = evaluate_board(board, BOT)
+        score = score / (Max_depth + 1) * (depth + 1)
+        return score, None, []
     best_move = None
     if maximizing_player:
         max_eval = float('-inf')
-        for move in generate_candidate_moves(board):
+        candidates = generate_candidate_moves(board) if depth != Max_depth else generate_candidate_moves(board,
+                                                                                                         proximity=1)
+        for move in candidates:
             row, col = move
             board[row][col] = BOT
-            eval, _, trace = minimax(board, depth - 1, alpha, beta, False)
+            eval, _, trace = minimax(board, depth - 1, alpha, beta, False, start_time)
             board[row][col] = ' '  # Undo the move
             if eval > max_eval:
                 max_eval = eval
                 best_move = move
                 trace.append(move)
-                bext_trace = trace
+                best_trace = trace
             alpha = max(alpha, eval)
             if beta <= alpha:
                 break
-        return max_eval, best_move, bext_trace
+        return max_eval, best_move, best_trace
     else:
         min_eval = float('inf')
         for move in generate_candidate_moves(board):
             row, col = move
             board[row][col] = PLAYER
-            eval, _ , trace = minimax(board, depth - 1, alpha, beta, True)
+            eval, _, trace = minimax(board, depth - 1, alpha, beta, True, start_time)
             board[row][col] = ' '  # Undo the move
             if eval < min_eval:
                 min_eval = eval
@@ -224,10 +254,10 @@ def minimax(board, depth, alpha, beta, maximizing_player):
 
 
 def bot_move(board, depth):
-    score, best_move, best_trace = minimax(board, depth, float('-inf'), float('inf'),True)
+    start_time = time.time()
+    score, best_move, best_trace = minimax(board, depth, -math.inf, math.inf, True, start_time)
     print(f"Best move: {best_move}, Score: {score}, trace: {best_trace}")
     return best_move
-
 
 
 def draw_pieces(screen, board):
@@ -237,14 +267,18 @@ def draw_pieces(screen, board):
                 draw_piece(screen, row, col, RED)
             elif board[row][col] == BOT:
                 draw_piece(screen, row, col, BLUE)
+
+
 def main(depth):
-    global Max_depth
+    global Max_depth, TimerResetFlag, screen
     Max_depth = depth
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption('Gomoku')
     clock = pygame.time.Clock()
     player_start_time = time.time()
+
+
 
     board = [[' ' for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
     player = PLAYER
@@ -257,53 +291,51 @@ def main(depth):
                 sys.exit()
 
             if event.type == pygame.MOUSEBUTTONDOWN and player == PLAYER:
+                if pygame.Rect(WINDOW_WIDTH - 150, WINDOW_HEIGHT - 90, 140, 40).collidepoint(event.pos):
+                    restart()  # Call the restart function
                 x, y = event.pos
                 col, row = x // GRID_SIZE, y // GRID_SIZE
-                if board[row][col] == ' ':
-                    board[row][col] = player
-                    if check_win_board(board, PLAYER):
-                        game_over_flag = (True, PLAYER)
-                    player = BOT
-                    draw_pieces(screen, board)
-                    pygame.display.flip()
+                try:
+                    if board[row][col] == ' ':
+                        board[row][col] = player
+                        if check_win_board(board, PLAYER):
+                            game_over_flag = (True, PLAYER)
+                        player = BOT
+                        draw_pieces(screen, board)
+                        pygame.display.flip()
+                except IndexError:
+                    pass
 
         if player == BOT and not game_over_flag[0]:
             (bot_row, bot_col) = bot_move(board, depth)
-            process_history(depth)
             if bot_row is not None and bot_col is not None:
                 board[bot_row][bot_col] = BOT
                 if check_win_board(board, BOT):
                     game_over_flag = (True, BOT)
                 player = PLAYER
-                player_start_time = time.time()
+                TimerResetFlag = 1
+            player_start_time = time.time()
 
         draw_board(screen)
         draw_pieces(screen, board)
+        draw_timer(screen, player, int(time.time() - player_start_time))
 
         if game_over_flag[0]:
             draw_winner(screen, game_over_flag[1])
 
-        draw_timer(screen, player, int(time.time() - player_start_time))
         pygame.display.flip()
-        clock.tick(30)
-
+        #clock.tick(30)
     while True:
         # Keep the window open for winner display
-        time.sleep(5)
-        pass
+        for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONDOWN and pygame.Rect(WINDOW_WIDTH - 150, WINDOW_HEIGHT - 90, 140,
+                                                                    40).collidepoint(event.pos):
+                restart()
 
-def process_history(depth):
-    global choise_history
-    #count number of each piece in the history
-    count = {}
-    for i in choise_history:
-        if i[1] == depth:
-            if i[2] in count:
-                count[i[2]] += 1
-            else:
-                count[i[2]] = 1
-    print(count)
-    choise_history = []
+
+def restart():
+    main(3)
+
 
 if __name__ == '__main__':
-    main(3)
+    restart()
