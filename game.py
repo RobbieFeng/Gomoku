@@ -46,6 +46,12 @@ def draw_timer(screen, player, remaining_time):
     else:
         timer_text = font.render(f"Player's Turn: {remaining_time} sec", True, BLACK)
     screen.blit(timer_text, (10, WINDOW_HEIGHT - 70))
+    restart_button_rect = pygame.Rect(WINDOW_WIDTH - 150, WINDOW_HEIGHT - 90, 140, 40)
+    pygame.draw.rect(screen, BLUE, restart_button_rect)
+    font = pygame.font.Font(None, 36)
+    text = font.render('Restart', True, WHITE)
+    text_rect = text.get_rect(center=restart_button_rect.center)
+    screen.blit(text, text_rect)
     pygame.display.flip()
 
 
