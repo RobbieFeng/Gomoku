@@ -1,9 +1,7 @@
-import math
-
 import pygame
-import sys
 import time
-import threading
+import v1
+import v2
 
 # Constants
 BOARD_SIZE = 13
@@ -16,11 +14,12 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 PLAYER = 'A'
 BOT = 'B'
-Max_depth = "Initialize"
-screen = "Initialize"
+screen = None
 count = 0
+FirstPlayer = None
+SecondPlayer = None
 
-def draw_board(screen):
+def draw_board():
     screen.fill(WHITE)
     for i in range(BOARD_SIZE):
         pygame.draw.line(screen, BLACK, (i * GRID_SIZE, 0), (i * GRID_SIZE, BOARD_SIZE * GRID_SIZE))
@@ -33,18 +32,16 @@ def draw_board(screen):
     text_rect = text.get_rect(center=restart_button_rect.center)
     screen.blit(text, text_rect)
 
-def draw_piece(screen, row, col, color):
+def draw_piece(row, col, color):
     pygame.draw.circle(screen, color, (col * GRID_SIZE + GRID_SIZE // 2, row * GRID_SIZE + GRID_SIZE // 2),
                        GRID_SIZE // 2 - 5)
 
 
-def draw_timer(screen, player, remaining_time):
+def draw_timer(player, remaining_time):
+    screen = pygame.display.get_surface()
     screen.fill(WHITE, (0, WINDOW_HEIGHT - 70, WINDOW_WIDTH, 70))
     font = pygame.font.Font(None, 36)
-    if player == BOT:
-        timer_text = font.render(f"Bot's Turn: Thinking... {remaining_time} sec", True, BLACK)
-    else:
-        timer_text = font.render(f"Player's Turn: {remaining_time} sec", True, BLACK)
+    timer_text = font.render(f"{player}'s Turn: Thinking... {remaining_time} sec", True, BLACK)
     screen.blit(timer_text, (10, WINDOW_HEIGHT - 70))
     restart_button_rect = pygame.Rect(WINDOW_WIDTH - 150, WINDOW_HEIGHT - 90, 140, 40)
     pygame.draw.rect(screen, BLUE, restart_button_rect)
@@ -56,7 +53,7 @@ def draw_timer(screen, player, remaining_time):
 
 
 
-def draw_winner(screen, winner):
+def draw_winner(winner):
     font = pygame.font.Font(None, 48)
     winner_text = font.render(f"Player {winner} wins!", True, RED if winner == PLAYER else BLUE)
     screen.blit(winner_text,
@@ -96,239 +93,64 @@ def game_over(board):
     return False
 
 
-def evaluate_board(board, player):
-    BOARD_SIZE = len(board)  # Assuming the board is square
-    score = 0
-    opponent = 'A' if player == 'B' else 'B'
-    patterns = {
-        'five_in_a_row': 64000,
-        'four_in_a_row_two_open': 320,
-        'four_in_a_row_one_open': 160,
-        'three_in_a_row_two_open': 80,
-        'three_in_a_row_one_open': 40,
-        'two_in_a_row_two_open': 20,
-        'two_in_a_row_one_open': 10,
-    }
-    urgent_patterns = ['five_in_a_row', 'four_in_a_row_two_open', 'four_in_a_row_one_open']
-    checked_positions = set()  # To keep track of positions that have been checked
-
-    for row in range(BOARD_SIZE):
-        for col in range(BOARD_SIZE):
-            if (row, col) not in checked_positions and board[row][col] in [player, opponent]:
-                # Check patterns only for positions that haven't been checked before
-                piece_owner = board[row][col]
-                score_change, new_checked_positions = check_patterns_around_piece(board, row, col, piece_owner,
-                                                                                  patterns, BOARD_SIZE)
-                checked_positions.update(new_checked_positions)  # Update checked positions
-
-                if piece_owner == player:
-                    score += score_change
-                else:
-                    score -= score_change
-    print("Score:%d for player:%s" % (score, player))
-    return score
-
-
-def check_patterns_around_piece(board, row, col, player, patterns, BOARD_SIZE):
-    score = 0
-    checked_positions = set()
-    directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
-
-    for d in directions:
-        forward_positions, backward_positions = [], []
-        total_count = 1  # Count the current piece
-        open_ends = 0
-
-        # Check forward direction
-        for i in range(1, 5):
-            r, c = row + i * d[0], col + i * d[1]
-            if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
-                forward_positions.append((r, c))
-                if board[r][c] == player:
-                    total_count += 1
-                elif board[r][c] == ' ':
-                    open_ends += 1
-                    break
-                else:
-                    break
-            else:
-                break
-
-        # Check backward direction
-        for i in range(1, 5):
-            r, c = row - i * d[0], col - i * d[1]
-            if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
-                backward_positions.append((r, c))
-                if board[r][c] == player:
-                    total_count += 1
-                elif board[r][c] == ' ' and total_count < 5:
-                    open_ends += 1
-                    break
-                else:
-                    break
-            else:
-                break
-
-        # Update score based on pattern found
-        pattern_key = ''
-        if total_count == 5:
-            pattern_key = 'five_in_a_row'
-        elif total_count == 4:
-            if open_ends == 2:
-                pattern_key = 'four_in_a_row_two_open'
-            elif open_ends == 1:
-                pattern_key = 'four_in_a_row_one_open'
-        elif total_count == 3:
-            if open_ends == 2:
-                pattern_key = 'three_in_a_row_two_open'
-            elif open_ends == 1:
-                pattern_key = 'three_in_a_row_one_open'
-        elif total_count == 2:
-            if open_ends == 2:
-                pattern_key = 'two_in_a_row_two_open'
-            elif open_ends == 1:
-                pattern_key = 'two_in_a_row_one_open'
-        if pattern_key:
-            score += patterns[pattern_key]
-            # Add positions part of this pattern to checked_positions to avoid rechecking
-            checked_positions.update(forward_positions)
-            checked_positions.update(backward_positions)
-
-    # Return the score and the set of checked positions
-    return score, checked_positions
-
-
-def generate_candidate_moves(board, proximity=2):
-    candidate_moves = set()
-    for row in range(BOARD_SIZE):
-        for col in range(BOARD_SIZE):
-            if board[row][col] != ' ':
-                for dr in range(-proximity, proximity + 1):
-                    for dc in range(-proximity + abs(dr), proximity + 1 - abs(dr)):
-                        new_row, new_col = row + dr, col + dc
-                        if 0 <= new_row < BOARD_SIZE and 0 <= new_col < BOARD_SIZE and board[new_row][new_col] == ' ':
-                            candidate_moves.add((new_row, new_col))
-
-    return list(candidate_moves)
-
-
-def minimax(board, depth, alpha, beta, maximizing_player, start_time):
-    global count
-    count += 1
-    if count % 1000 == 0:
-        draw_timer(screen, BOT, int(time.time() - start_time))
-    if depth == 0 or game_over(board):
-        score = evaluate_board(board, BOT)
-        score = score / (Max_depth + 1) * (depth + 1)
-        return score, None, []
-    best_move = None
-    if maximizing_player:
-        max_eval = float('-inf')
-        # for fist move, idealy place beside the first player
-        candidates = generate_candidate_moves(board) if depth != Max_depth else generate_candidate_moves(board,
-                                                                                                         proximity=1)
-        for move in candidates:
-            row, col = move
-            board[row][col] = BOT
-            eval, _, trace = minimax(board, depth - 1, alpha, beta, False, start_time)
-            board[row][col] = ' '  # Undo the move
-            if eval > max_eval:
-                max_eval = eval
-                best_move = move
-                trace.append(move)
-                best_trace = trace
-            alpha = max(alpha, eval)
-            if beta <= alpha:
-                break
-        return max_eval, best_move, best_trace
-    else:
-        min_eval = float('inf')
-        for move in generate_candidate_moves(board):
-            row, col = move
-            board[row][col] = PLAYER
-            eval, _, trace = minimax(board, depth - 1, alpha, beta, True, start_time)
-            board[row][col] = ' '  # Undo the move
-            if eval < min_eval:
-                min_eval = eval
-                best_move = move
-                trace.append(move)
-                best_trace = trace
-            beta = min(beta, eval)
-            if beta <= alpha:
-                break
-
-        return min_eval, best_move, best_trace
-
-
-def bot_move(board, depth):
-    start_time = time.time()
-    score, best_move, best_trace = minimax(board, depth, -math.inf, math.inf, True, start_time)
-    print(f"Best move: {best_move}, Score: {score}, trace: {best_trace}")
-    return best_move
-
-
-def draw_pieces(screen, board):
+def draw_pieces(board):
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
             if board[row][col] == PLAYER:
-                draw_piece(screen, row, col, RED)
+                draw_piece(row, col, RED)
             elif board[row][col] == BOT:
-                draw_piece(screen, row, col, BLUE)
+                draw_piece(row, col, BLUE)
 
 
-def main(depth):
-    global Max_depth, TimerResetFlag, screen
-    Max_depth = depth
+def main(firstPlayer, secondPlayer):
+    global TimerResetFlag, screen, FirstPlayer, SecondPlayer
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption('Gomoku')
     clock = pygame.time.Clock()
     player_start_time = time.time()
 
+    FirstPlayer = firstPlayer
+    SecondPlayer = secondPlayer
 
 
     board = [[' ' for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-    player = PLAYER
+    player = firstPlayer
     game_over_flag = (False, None)
 
+    #if bot is first player, plave at the center
+    if firstPlayer.isHuman() == False:
+        board[BOARD_SIZE//2][BOARD_SIZE//2] = firstPlayer.getSymbol()
+        player = secondPlayer
+        draw_pieces(board)
+        pygame.display.flip()
+
     while not game_over_flag[0]:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+        time.sleep(0.5)
+        if player == firstPlayer:
+            (row, col) = player.human_move(board) if firstPlayer.isHuman() else player.bot_move(board)
+            board[row][col] = player.getSymbol()
+            if check_win_board(board, player):
+                game_over_flag = (True, player)
+            player = secondPlayer
+            draw_pieces(board)
+            pygame.display.flip()
 
-            if event.type == pygame.MOUSEBUTTONDOWN and player == PLAYER:
-                if pygame.Rect(WINDOW_WIDTH - 150, WINDOW_HEIGHT - 90, 140, 40).collidepoint(event.pos):
-                    restart()  # Call the restart function
-                x, y = event.pos
-                col, row = x // GRID_SIZE, y // GRID_SIZE
-                try:
-                    if board[row][col] == ' ':
-                        board[row][col] = player
-                        if check_win_board(board, PLAYER):
-                            game_over_flag = (True, PLAYER)
-                        player = BOT
-                        draw_pieces(screen, board)
-                        pygame.display.flip()
-                except IndexError:
-                    pass
+        elif player == secondPlayer:
+            (row, col) = player.human_move(board) if player.isHuman() else player.bot_move(board)
+            board[row][col] = player.getSymbol()
+            if check_win_board(board, player):
+                game_over_flag = (True, player)
+            player = firstPlayer
+            draw_pieces(board)
+            pygame.display.flip()
 
-        if player == BOT and not game_over_flag[0]:
-            (bot_row, bot_col) = bot_move(board, depth)
-            if bot_row is not None and bot_col is not None:
-                board[bot_row][bot_col] = BOT
-                if check_win_board(board, BOT):
-                    game_over_flag = (True, BOT)
-                player = PLAYER
-                TimerResetFlag = 1
-            player_start_time = time.time()
-
-        draw_board(screen)
-        draw_pieces(screen, board)
-        draw_timer(screen, player, int(time.time() - player_start_time))
+        draw_board()
+        draw_pieces(board)
+        draw_timer(player.getSymbol(), int(time.time() - player_start_time))
 
         if game_over_flag[0]:
-            draw_winner(screen, game_over_flag[1])
+            draw_winner(game_over_flag[1])
 
         pygame.display.flip()
         #clock.tick(30)
@@ -341,8 +163,10 @@ def main(depth):
 
 
 def restart():
-    main(3)
+    main(FirstPlayer, SecondPlayer)
 
 
 if __name__ == '__main__':
-    restart()
+    firstPlayer = v1.v1(BOARD_SIZE, PLAYER, BOT)
+    secondPlayer = v2.v2(BOARD_SIZE, BOT, PLAYER, 3)
+    main(firstPlayer, secondPlayer)
