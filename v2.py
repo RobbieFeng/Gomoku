@@ -16,10 +16,10 @@ class v2:
         opponent = 'A' if player == 'B' else 'B'
         patterns = {
             'five_in_a_row': 64000,
-            'four_in_a_row_two_open': 320,
-            'four_in_a_row_one_open': 160,
-            'three_in_a_row_two_open': 80,
-            'three_in_a_row_one_open': 40,
+            'four_in_a_row_two_open': 1280,
+            'four_in_a_row_one_open': 640,
+            'three_in_a_row_two_open': 160,
+            'three_in_a_row_one_open': 80,
             'two_in_a_row_two_open': 20,
             'two_in_a_row_one_open': 10,
         }
@@ -129,8 +129,14 @@ class v2:
     def minimax(self, board, depth, alpha, beta, maximizing_player, start_time):
         global count
         count += 1
+        # update timer
         if count % 1000 == 0:
             game.draw_timer(self.bot, int(time.time() - start_time))
+        # Make sure do not miss immediate win
+        if depth == self.Max_depth - 1 and game.game_over(board):
+            return math.inf, None, []
+
+
         if depth == 0 or game.game_over(board):
             score = self.evaluate_board(board, self.bot)
             score = score / (self.Max_depth + 1) * (depth + 1)
@@ -178,6 +184,8 @@ class v2:
         start_time = time.time()
         score, best_move, best_trace = self.minimax(board, self.Max_depth, -math.inf, math.inf, True, start_time)
         #print(f"Best move: {best_move}, Score: {score}, trace: {best_trace}")
+        if best_move is None:
+            return self.generate_candidate_moves(board)[0]
         return best_move
 
     def isHuman(self):

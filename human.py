@@ -1,4 +1,5 @@
 import sys
+import time
 
 import pygame
 import game
@@ -11,14 +12,16 @@ class human:
         self.bot = opponent
 
     def human_move(self, board):
-        while not game.game_over_flag[0]:
+        start_time = time.time()
+        while True:
             for event in pygame.event.get():
+                game.draw_timer("Player", int(time.time() - start_time))
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if pygame.Rect(game.WINDOW_WIDTH - 150, game.WINDOW_HEIGHT - 90, 140, 40).collidepoint(event.pos):
-                        game.restart()  # Call the restart function
+                        return "Restart", None  # Call the restart function
                     x, y = event.pos
                     col, row = x // game.GRID_SIZE, y // game.GRID_SIZE
                     try:

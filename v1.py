@@ -1,9 +1,12 @@
 import random
+import time
+
+import game
 
 
 class v1():
 
-    def __init__(self, board_size, bot, opponent):
+    def __init__(self, board_size, bot, opponent, depth):
         self.board_size = board_size
         self.player = opponent
         self.bot = bot
@@ -11,8 +14,9 @@ class v1():
     def bot_move(self, board):
         best_move = None
         best_score = -1
-
+        start_time = time.time()
         for row in range(self.board_size):
+            game.draw_timer(self.getSymbol(), int(time.time() - start_time))
             for col in range(self.board_size):
                 if board[row][col] == ' ':
                     board[row][col] = self.player

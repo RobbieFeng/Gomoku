@@ -2,6 +2,7 @@ import pygame
 import time
 import v1
 import v2
+import human
 
 # Constants
 BOARD_SIZE = 13
@@ -58,7 +59,7 @@ def draw_winner(winner):
     winner_text = font.render(f"Player {winner} wins!", True, RED if winner == PLAYER else BLUE)
     screen.blit(winner_text,
                 ((WINDOW_WIDTH - winner_text.get_width()) // 2, (WINDOW_HEIGHT - winner_text.get_height()) // 2))
-
+    pygame.display.flip()
 
 def check_win(board, row, col, player):
     directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
@@ -97,9 +98,9 @@ def draw_pieces(board):
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
             if board[row][col] == PLAYER:
-                draw_piece(row, col, RED)
+                draw_piece(row, col, BLACK)
             elif board[row][col] == BOT:
-                draw_piece(row, col, BLUE)
+                draw_piece(row, col, RED)
 
 
 def main(firstPlayer, secondPlayer):
@@ -107,7 +108,6 @@ def main(firstPlayer, secondPlayer):
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption('Gomoku')
-    clock = pygame.time.Clock()
     player_start_time = time.time()
 
     FirstPlayer = firstPlayer
@@ -125,33 +125,39 @@ def main(firstPlayer, secondPlayer):
         draw_pieces(board)
         pygame.display.flip()
 
+    draw_board()
+    draw_pieces(board)
+    pygame.display.flip()
+
     while not game_over_flag[0]:
         time.sleep(0.5)
         if player == firstPlayer:
             (row, col) = player.human_move(board) if firstPlayer.isHuman() else player.bot_move(board)
+            if row == "Restart":
+                restart()
             board[row][col] = player.getSymbol()
-            if check_win_board(board, player):
-                game_over_flag = (True, player)
+            if check_win_board(board, player.getSymbol()):
+                game_over_flag = (True, player.getSymbol())
             player = secondPlayer
             draw_pieces(board)
             pygame.display.flip()
 
         elif player == secondPlayer:
             (row, col) = player.human_move(board) if player.isHuman() else player.bot_move(board)
+            if row == "Restart":
+                restart()
             board[row][col] = player.getSymbol()
-            if check_win_board(board, player):
-                game_over_flag = (True, player)
+            if check_win_board(board, player.getSymbol()):
+                game_over_flag = (True, player.getSymbol())
             player = firstPlayer
             draw_pieces(board)
             pygame.display.flip()
 
-        draw_board()
         draw_pieces(board)
-        draw_timer(player.getSymbol(), int(time.time() - player_start_time))
 
         if game_over_flag[0]:
             draw_winner(game_over_flag[1])
-
+            break
         pygame.display.flip()
         #clock.tick(30)
     while True:
@@ -167,6 +173,18 @@ def restart():
 
 
 if __name__ == '__main__':
-    firstPlayer = v1.v1(BOARD_SIZE, PLAYER, BOT)
-    secondPlayer = v2.v2(BOARD_SIZE, BOT, PLAYER, 3)
-    main(firstPlayer, secondPlayer)
+    while True:
+        choice = input ("Enter 1 for bot vs bot, 2 for bot vs human, 3 for human vs bot: ")
+        if choice == "1":
+            firstPlayer = v2.v2(BOARD_SIZE, 'A', 'B', 3)
+            secondPlayer = v1.v1(BOARD_SIZE, 'B', 'A', 3)
+            main(firstPlayer, secondPlayer)
+        elif choice == "2":
+            firstPlayer = v2.v2(BOARD_SIZE, 'A', 'B', 3)
+            secondPlayer = human.human(BOARD_SIZE, 'B', 'A')
+            main(firstPlayer, secondPlayer)
+        elif choice == "3":
+            firstPlayer = human.human(BOARD_SIZE, 'A', 'B')
+            secondPlayer = v2.v2(BOARD_SIZE, 'B', 'A', 3)
+            main(firstPlayer, secondPlayer)
+
