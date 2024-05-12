@@ -1,7 +1,7 @@
 import pygame
 import time
-import v1
-import v2
+import Bot1
+import Bot2
 import human
 
 # Constants
@@ -176,15 +176,15 @@ if __name__ == '__main__':
     while True:
         choice = input ("Enter 1 for bot vs bot, 2 for bot vs human, 3 for human vs bot: ")
         if choice == "1":
-            firstPlayer = v2.v2(BOARD_SIZE, 'A', 'B', 3)
-            secondPlayer = v1.v1(BOARD_SIZE, 'B', 'A', 3)
+            firstPlayer = Bot2.Bot2(BOARD_SIZE, 'A', 'B', 3)
+            secondPlayer = Bot1.Bot1(BOARD_SIZE, 'B', 'A', 3)
             main(firstPlayer, secondPlayer)
         elif choice == "2":
-            firstPlayer = v2.v2(BOARD_SIZE, 'A', 'B', 3)
+            firstPlayer = Bot2.Bot2(BOARD_SIZE, 'A', 'B', 3)
             secondPlayer = human.human(BOARD_SIZE, 'B', 'A')
             main(firstPlayer, secondPlayer)
         elif choice == "3":
             firstPlayer = human.human(BOARD_SIZE, 'A', 'B')
-            secondPlayer = v2.v2(BOARD_SIZE, 'B', 'A', 3)
+            secondPlayer = Bot2.Bot2(BOARD_SIZE, 'B', 'A', 3)
             main(firstPlayer, secondPlayer)
 

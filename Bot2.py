@@ -4,7 +4,7 @@ import time
 import game
 
 count = 0
-class v2:
+class Bot2:
     def __init__(self, board_size, bot, opponent, depth):
         self.board_size = board_size
         self.player = opponent

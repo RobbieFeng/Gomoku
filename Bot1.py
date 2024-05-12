@@ -4,7 +4,7 @@ import time
 import game
 
 
-class v1():
+class Bot1():
 
     def __init__(self, board_size, bot, opponent, depth):
         self.board_size = board_size
@@ -20,9 +20,9 @@ class v1():
             for col in range(self.board_size):
                 if board[row][col] == ' ':
                     board[row][col] = self.player
-                    opponent_chain_length = self.evaluate_chain(board, row, col, self.player)
+                    opponent_chain_length = self._evaluate_chain(board, row, col, self.player)
                     board[row][col] = self.bot
-                    bot_chain_length = self.evaluate_chain(board, row, col, self.bot)
+                    bot_chain_length = self._evaluate_chain(board, row, col, self.bot)
                     board[row][col] = ' '
 
                     score = max(opponent_chain_length, bot_chain_length)
@@ -32,7 +32,7 @@ class v1():
 
         return best_move
 
-    def count_chain_length(self, board, row, col, player, drow, dcol):
+    def _count_chain_length(self, board, row, col, player, drow, dcol):
         length = 0
         while 0 <= row < self.board_size and 0 <= col < self.board_size and board[row][col] == player:
             length += 1
@@ -40,13 +40,13 @@ class v1():
             col += dcol
         return length
 
-    def evaluate_chain(self, board, row, col, player):
+    def _evaluate_chain(self, board, row, col, player):
         directions = [(1, 0), (0, 1), (1, 1), (1, -1)]
         max_length = 0
         for drow, dcol in directions:
-            length = 1 + self.count_chain_length(board, row + drow, col + dcol, player, drow,
-                                                 dcol) + self.count_chain_length(board, row - drow, col - dcol, player,
-                                                                                 -drow, -dcol)
+            length = 1 + self._count_chain_length(board, row + drow, col + dcol, player, drow,
+                                                  dcol) + self._count_chain_length(board, row - drow, col - dcol, player,
+                                                                                   -drow, -dcol)
             max_length = max(max_length, length)
         return max_length
 
